@@ -1,188 +1,133 @@
 package main
 
-// TODO: Convert from Fprintf to json.Encoder
-
 import (
+	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/jackc/pgx/v5"
+	"github.com/joho/godotenv"
 	"io"
+	"log"
 	"net/http"
-	"slices"
-	"strconv"
+	"os"
+
+	"gamelib.cloud/models"
+	"gamelib.cloud/services"
 )
 
-// Dto
-type NewGameData struct {
-	Name      string `json:"name"`
-	Developer string `json:"developer"`
-}
-type UpdateGameData = NewGameData
-
-// Database Object
-type Game struct {
-	Id        int    `json:"id"`
-	Name      string `json:"name"`
-	Developer string `json:"developer"`
-}
-
-func (g *NewGameData) CreateNewGame() Game {
-	return Game{
-		Id:        currIndex,
-		Name:      g.Name,
-		Developer: g.Developer,
-	}
-}
-
-func (g *UpdateGameData) MapToGame(id int) Game {
-    return Game{
-        Id: id,
-        Name: g.Name,
-        Developer: g.Developer,
+func handleGetGames(w http.ResponseWriter, r *http.Request, s *services.Service) {
+	resp := make(map[string]string)
+	gamesResults, err := s.GetGamesService(r.Context())
+	if nil != err {
+		resp["error"] = "Error getting games list"
+		resp["status"] = "error"
+		log.Printf("%s\n", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
     }
-}
 
-var GAMES []Game
-var currIndex int
-
-func handleRoot(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprintf(w, "Hello, gamer!\n")
-}
-
-func handleGetGames(w http.ResponseWriter, r *http.Request) {
-
-	gamesJson, err := json.Marshal(GAMES)
+	// convert result into json
+	w.Header().Set("Content-Type", "application/json")
+	gamesJson, err := json.Marshal(gamesResults)
 	if nil != err {
-		fmt.Fprintf(w, "JSON Error\n")
-		return
+		resp["error"] = "JSON ERROR"
+		resp["status"] = "error"
+		log.Printf("JSON ERROR\n")
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		resp["data"] = string(gamesJson)
+		resp["status"] = "success"
+		log.Printf("Get Success\n")
+		w.WriteHeader(http.StatusOK)
 	}
-	fmt.Fprintf(w, "%s\n", string(gamesJson))
+	jsonRep, _ := json.Marshal(resp)
+	w.Write(jsonRep)
 }
 
-func handleGetGameById(w http.ResponseWriter, r *http.Request) {
-
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if nil != err {
-		fmt.Fprintf(w, "Id not valid.\n")
-		return
-	}
-
-	index := slices.IndexFunc(GAMES, func(g Game) bool {
-		return g.Id == id
-	})
-
-	if index == -1 {
-		fmt.Fprintf(w, "No game found with id %s\n", id)
-		return
-	}
-
-	game := GAMES[index]
-	gameJson, err := json.Marshal(game)
-	if nil != err {
-		panic(err)
-	}
-	fmt.Fprintf(w, "%s\n", string(gameJson))
-}
-
-func handlePostGame(w http.ResponseWriter, r *http.Request) {
+func handlePostGame(w http.ResponseWriter, r *http.Request, s *services.Service) {
 	defer r.Body.Close()
+	resp := make(map[string]string)
+
 	bodyBytes, err := io.ReadAll(r.Body)
 	if nil != err {
-		fmt.Fprintf(w, "Error reading body\n")
-		return
+		log.Printf("Error Reading Response Body\n")
+		resp["status"] = "error"
+		resp["error"] = "Error Reading Response Body"
+		jsonResp, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResp)
+        return
 	}
 
 	if len(bodyBytes) == 0 {
-		fmt.Fprintf(w, "Error: Must provide game data.\n")
-		return
+		log.Printf("Game Data is required\n")
+		resp["status"] = "error"
+		resp["error"] = "Game Data is required"
+		jsonResp, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write(jsonResp)
+        return
 	}
 
-	fmt.Printf("%s", bodyBytes)
-
-	var newGameData NewGameData
+	var newGameData models.NewGameData
 	err = json.Unmarshal(bodyBytes, &newGameData)
 	if nil != err {
-		fmt.Fprintf(w, "Error: JSON Unmarshal Error.")
-		panic(err)
+		log.Printf("JSON ERROR\n")
+		resp["status"] = "error"
+		resp["error"] = "JSON Error"
+		jsonResp, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(jsonResp)
+        return
 	}
 
-	newGame := newGameData.CreateNewGame()
-
-	GAMES = append(GAMES, newGame)
-	currIndex++
-
-	fmt.Fprintf(w, "Added a new game with details: %d, %s, %s\n",
-		newGame.Id, newGame.Name, newGame.Developer)
-}
-
-// PathValue: Id
-// Body: { name string | nil, developer string | nil }
-func handlePutGame(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-
-	id, err := strconv.Atoi(r.PathValue("id"))
+	newGame, err := s.AddGameService(r.Context(), newGameData)
 	if nil != err {
-		fmt.Fprintf(w, "Id not valid.\n")
-		return
-	}
-	bodyBytes, err := io.ReadAll(r.Body)
-	if nil != err {
-		fmt.Fprintf(w, "Error: reading body.\n")
-		return
-	}
-
-	if len(bodyBytes) == 0 {
-		fmt.Fprintf(w, "Error: Must provide game data.\n")
-		return
+		log.Printf("Error writing to database\n")
+		resp["status"] = "error"
+		resp["error"] = "Error writing to database"
+		jsonResp, _ := json.Marshal(resp)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write(jsonResp)
+        return
 	}
 
-    fmt.Printf("%s", bodyBytes)
-
-	var updatedGameData UpdateGameData
-	err = json.Unmarshal(bodyBytes, &updatedGameData)
-	if nil != err {
-		// fmt.Fprintf(w, "Error: JSON Unmarshal Error.")
-        panic(err)
-		return
-	}
-
-    updatedGame := updatedGameData.MapToGame(id)
-
-	index := slices.IndexFunc(GAMES, func(g Game) bool {
-		return g.Id == id
-	})
-
-    GAMES = slices.Replace(GAMES, index, index+1, updatedGame)
-
-	fmt.Fprintf(w, "Updated game with id %s. Name: %s and Developer: %s.\n",
-		id, updatedGame.Name, updatedGame.Developer)
-}
-
-// PathValue: id
-func handleDeleteGame(w http.ResponseWriter, r *http.Request) {
-
-	id, err := strconv.Atoi(r.PathValue("id"))
-	if nil != err {
-		fmt.Fprintf(w, "Id not valid.\n")
-		return
-	}
-
-	GAMES = slices.DeleteFunc(GAMES, func(g Game) bool {
-		return g.Id == id
-	})
-
-	fmt.Fprintf(w, "Delete an existing game with id %s.\n", id)
+	newGameJson, _ := json.Marshal(newGame)
+	log.Printf("POST Success")
+	resp["status"] = "success"
+	resp["data"] = string(newGameJson)
+	jsonResp, _ := json.Marshal(resp)
+	w.WriteHeader(http.StatusCreated)
+	w.Write(jsonResp)
 }
 
 func main() {
-	GAMES = make([]Game, 0)
-	currIndex = 0
+
+	// loading environment
+	if err := godotenv.Load(); nil != err {
+		log.Printf("No .env file found.\n")
+	}
+	log.Printf("Loaded env.\n")
+
+	// connect to database
+	conn, err := pgx.Connect(context.Background(), os.Getenv("DB_URI"))
+	if nil != err {
+		panic(err)
+	}
+	defer conn.Close(context.Background())
+
+	log.Printf("Connected to Database.\n")
+	s := services.Service{Db: conn}
+
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /games", handleGetGames)
-	mux.HandleFunc("GET /games/{id}", handleGetGameById)
-	mux.HandleFunc("POST /games", handlePostGame)
-	mux.HandleFunc("PUT /games/{id}", handlePutGame)
-	mux.HandleFunc("DELETE /games/{id}", handleDeleteGame)
-	mux.HandleFunc("/{$}", handleRoot)
-	fmt.Printf("Listening on :8080\n")
+	mux.HandleFunc("GET /games", func(w http.ResponseWriter, r *http.Request) {
+		handleGetGames(w, r, &s)
+	})
+	// mux.HandleFunc("GET /games/{id}", handleGetGameById)
+	mux.HandleFunc("POST /games", func(w http.ResponseWriter, r *http.Request) {
+		handlePostGame(w, r, &s)
+	})
+	// mux.HandleFunc("PUT /games/{id}", handlePutGame)
+	// mux.HandleFunc("DELETE /games/{id}", handleDeleteGame)
+
+	log.Printf("Listening on :8080\n")
 	http.ListenAndServe(":8080", mux)
 }
