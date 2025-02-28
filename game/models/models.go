@@ -6,6 +6,7 @@ type NewGameData struct {
 	Name      string `json:"name"`
 	Developer string `json:"developer"`
 }
+type UpdateGameData = NewGameData
 
 // Database Object
 type Game struct {
@@ -15,10 +16,11 @@ type Game struct {
 }
 
 // Mapping Helpers
-func (g *NewGameData) CreateNewGame(id int64) Game {
+func (g *NewGameData) MapToGame(id int64) Game {
 	return Game{
 		Id:        id,
 		Name:      g.Name,
 		Developer: g.Developer,
 	}
 }
+
