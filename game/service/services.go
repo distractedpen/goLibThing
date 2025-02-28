@@ -47,7 +47,7 @@ func (s *Service) GetGameByIdService(ctx context.Context, id int64) (models.Game
 func (s *Service) GetGameByNameAndDeveloper(ctx context.Context, name string, developer string) (models.Game, error) {
 	var game models.Game
 
-	result := s.Db.QueryRow(ctx, "SELECT id, name, developer FROM games WHERE name=$1 AND developer=$developer", name, developer)
+	result := s.Db.QueryRow(ctx, "SELECT id, name, developer FROM games WHERE name=$1 AND developer=$2", name, developer)
     err := result.Scan(&game)
     if nil != err {
         log.Printf("%s\n", err.Error())

@@ -5,6 +5,8 @@ go 1.24.0
 require (
 	gamelib.cloud/game/models v0.0.0-00010101000000-000000000000
 	gamelib.cloud/game/service v0.0.0-00010101000000-000000000000
+	gamelib.cloud/user/models v0.0.0-00010101000000-000000000000
+	gamelib.cloud/user/service v0.0.0-00010101000000-000000000000
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/joho/godotenv v1.5.1
 )
@@ -19,3 +21,7 @@ require (
 replace gamelib.cloud/game/service => ../game/service
 
 replace gamelib.cloud/game/models => ../game/models
+
+replace gamelib.cloud/user/models => ../user/models
+
+replace gamelib.cloud/user/service => ../user/service
