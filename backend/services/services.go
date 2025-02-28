@@ -14,15 +14,19 @@ type Service struct {
 func (s *Service) GetGamesService(ctx context.Context) ([]models.Game, error) {
 	gamesResults := make([]models.Game, 0)
 	// get the results for the database
-	result, err := s.Db.Query(ctx, "SELECT * from Games;")
-    if nil != err {
-        return gamesResults, err
-    }
+	result, err := s.Db.Query(ctx, "SELECT id, name, developer FROM games;")
+	if nil != err {
+		return gamesResults, err
+	}
 	// parse the db results into objects
 	for result.Next() {
 		var game models.Game
-		result.Scan(&game)
+		result.Scan(&game.Id, &game.Name, &game.Developer)
 		gamesResults = append(gamesResults, game)
+	}
+	err = result.Err()
+	if nil != err {
+		return gamesResults, err
 	}
 
 	return gamesResults, nil
@@ -38,9 +42,9 @@ func (s *Service) AddGameService(ctx context.Context, data models.NewGameData) (
 		return game, err
 	}
 	result := s.Db.QueryRow(ctx,
-		"SELECT * FROM Games WHERE name=$1 AND developer=$2",
+		"SELECT id, name, developer FROM Games WHERE name=$1 AND developer=$2",
 		data.Name, data.Developer)
-	err = result.Scan(&game)
+	err = result.Scan(&game.Id, &game.Name, &game.Developer)
 	if nil != err {
 		log.Printf("%s\n", err.Error())
 		return game, err

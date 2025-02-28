@@ -15,7 +15,7 @@ import (
 )
 
 func handleGetGames(w http.ResponseWriter, r *http.Request, s *services.Service) {
-	resp := make(map[string]string)
+	resp := make(map[string]any)
 	gamesResults, err := s.GetGamesService(r.Context())
 	if nil != err {
 		resp["error"] = "Error getting games list"
@@ -26,17 +26,15 @@ func handleGetGames(w http.ResponseWriter, r *http.Request, s *services.Service)
 
 	// convert result into json
 	w.Header().Set("Content-Type", "application/json")
-	gamesJson, err := json.Marshal(gamesResults)
 	if nil != err {
 		resp["error"] = "JSON ERROR"
 		resp["status"] = "error"
 		log.Printf("JSON ERROR\n")
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		resp["data"] = string(gamesJson)
+		resp["data"] = gamesResults
 		resp["status"] = "success"
 		log.Printf("Get Success\n")
-		w.WriteHeader(http.StatusOK)
 	}
 	jsonRep, _ := json.Marshal(resp)
 	w.Write(jsonRep)
@@ -44,7 +42,7 @@ func handleGetGames(w http.ResponseWriter, r *http.Request, s *services.Service)
 
 func handlePostGame(w http.ResponseWriter, r *http.Request, s *services.Service) {
 	defer r.Body.Close()
-	resp := make(map[string]string)
+	resp := make(map[string]any)
 
 	bodyBytes, err := io.ReadAll(r.Body)
 	if nil != err {
@@ -90,10 +88,9 @@ func handlePostGame(w http.ResponseWriter, r *http.Request, s *services.Service)
         return
 	}
 
-	newGameJson, _ := json.Marshal(newGame)
 	log.Printf("POST Success")
 	resp["status"] = "success"
-	resp["data"] = string(newGameJson)
+	resp["data"] = newGame
 	jsonResp, _ := json.Marshal(resp)
 	w.WriteHeader(http.StatusCreated)
 	w.Write(jsonResp)
