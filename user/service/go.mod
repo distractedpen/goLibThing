@@ -13,8 +13,11 @@ require (
 
 require (
 	gamelib.cloud/game/models v0.0.0-00010101000000-000000000000 // indirect
+	gamelib.cloud/game/services v0.0.0-00010101000000-000000000000 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	golang.org/x/crypto v0.31.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 )
+
+replace gamelib.cloud/game/services => ../../game/service
